@@ -27,6 +27,12 @@
     "win": {
       "target": "nsis"
     },
+    "protocols": {
+      "name": "VerseCon Link Protocol",
+      "schemes": [
+        "versecon-link"
+      ]
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true

@@ -78,11 +78,61 @@ LogWatcher.on('status', (status) => broadcast('log:status', status));
 APIClient.on('party', (data) => broadcast('api:party', data));
 APIClient.on('status', (status) => broadcast('api:status', status)); // Needs to be added to APIClient
 
-app.whenReady().then(() => {
-    createWindows();
-    LogWatcher.start();
-});
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+    app.quit();
+} else {
+    app.on('second-instance', (event, commandLine, workingDirectory) => {
+        // Someone tried to run a second instance, we should focus our window.
+        if (dashboardWindow) {
+            if (dashboardWindow.isMinimized()) dashboardWindow.restore();
+            dashboardWindow.focus();
+        }
+
+        // Extract token from protocol
+        const url = commandLine.find(arg => arg.startsWith('versecon-link://'));
+        if (url) handleDeepLink(url);
+    });
+
+    app.whenReady().then(() => {
+        createWindows();
+        LogWatcher.start();
+    });
+
+    // Handle macOS Deep Link
+    app.on('open-url', (event, url) => {
+        event.preventDefault();
+        handleDeepLink(url);
+    });
+}
+
+function handleDeepLink(url) {
+    console.log('[Main] Received Deep Link:', url);
+    try {
+        // Format: versecon-link://auth?token=XYZ
+        const urlObj = new URL(url);
+        const token = urlObj.searchParams.get('token');
+        if (token) {
+            console.log('[Main] Token found in URL');
+            if (dashboardWindow) dashboardWindow.webContents.send('auth:success', token);
+            APIClient.token = token;
+            APIClient.connectSocket(token);
+        }
+    } catch (e) {
+        console.error('[Main] Deep link parse error:', e);
+    }
+}
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
 });
+
+// Register as default protocol client (dev mode check)
+if (process.defaultApp) {
+    if (process.argv.length >= 2) {
+        app.setAsDefaultProtocolClient('versecon-link', process.execPath, [path.resolve(process.argv[1])]);
+    }
+} else {
+    app.setAsDefaultProtocolClient('versecon-link');
+}
