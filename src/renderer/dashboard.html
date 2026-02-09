@@ -242,6 +242,7 @@
             clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
             cursor: pointer;
             transition: all 0.2s;
+            -webkit-app-region: no-drag;
         }
 
         button.cyber-btn:hover {
@@ -293,11 +294,11 @@
 
         <div style="flex:1"></div>
 
-        <div style="margin-bottom: 20px;">
+        <div style="margin-bottom: 20px;" class="no-drag">
             <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 5px;">VERSECON AUTH</div>
 
             <div id="auth-ui-guest">
-                <button class="cyber-btn" onclick="openLogin()">Login with VerseCon</button>
+                <button class="cyber-btn no-drag" onclick="openLogin()">Login with VerseCon</button>
                 <div style="font-size: 0.7rem; color: #666; margin-top: 5px; text-align: center;">
                     Opens browser to authenticate
                 </div>
@@ -378,7 +379,7 @@
     </div>
 
     <script>
-        const { ipcRenderer, shell } = require('electron');
+        const { ipcRenderer } = require('electron');
 
         // UI Elements
         const feed = document.getElementById('event-feed');
@@ -398,9 +399,15 @@
 
         // Logic
         function openLogin() {
+            console.log('[Dashboard] openLogin clicked!');
             // Point to main login for now until deep link page is live
-            ipcRenderer.invoke('app:open-external', 'https://versecon.com/login');
-            addFeedItem('🔑', 'Opening browser... Please login and copy your token.');
+            ipcRenderer.invoke('app:open-external', 'https://versecon.com/login').then(() => {
+                console.log('[Dashboard] openExternal resolved');
+                addFeedItem('🔑', 'Opening browser... Please login and copy your token.');
+            }).catch(err => {
+                console.error('[Dashboard] openExternal failed:', err);
+                addFeedItem('❌', 'Failed to open browser: ' + err.message);
+            });
         }
 
         function loginManual() {
@@ -457,9 +464,36 @@
         });
 
         ipcRenderer.on('log:update', (e, data) => {
-            if (data.type === 'LOCATION') addFeedItem('📍', `Entered Location: <span class="feed-highlight">${data.value}</span>`);
-            if (data.type === 'QUANTUM') addFeedItem('🚀', `Quantum State: <span class="feed-highlight">${data.value}</span>`);
-            if (data.type === 'LOGIN') addFeedItem('👋', 'Session Started: Login Detected');
+            switch (data.type) {
+                case 'LOCATION':
+                    addFeedItem('📍', `Location: <span class="feed-highlight">${data.value}</span>`);
+                    break;
+                case 'LOCATION_HINT':
+                    addFeedItem('🗺️', `Area Loaded: <span class="feed-highlight">${data.value}</span>`);
+                    break;
+                case 'QUANTUM':
+                    addFeedItem('🚀', `Quantum Drive: <span class="feed-highlight">${data.value === 'entered' ? 'ENGAGED' : 'DISENGAGED'}</span>`);
+                    break;
+                case 'ZONE':
+                    if (data.value === 'armistice_enter') addFeedItem('🛡️', 'Entered <span class="feed-highlight">Armistice Zone</span> — Combat Prohibited');
+                    else if (data.value === 'armistice_leave') addFeedItem('⚠️', 'Left <span class="feed-highlight">Armistice Zone</span> — Caution Advised');
+                    else if (data.value === 'monitored_enter') addFeedItem('📡', 'Entered <span class="feed-highlight">Monitored Space</span>');
+                    break;
+                case 'STATUS':
+                    if (data.value === 'suffocating') addFeedItem('😵', '<span class="feed-highlight" style="color:#ff4444">SUFFOCATING</span> — Check helmet seal!');
+                    else if (data.value === 'depressurizing') addFeedItem('💨', '<span class="feed-highlight" style="color:#ff4444">DEPRESSURIZATION</span> detected');
+                    else if (data.value === 'death') addFeedItem('💀', '<span class="feed-highlight" style="color:#ff4444">DEATH DETECTED</span>');
+                    break;
+                case 'LOGIN':
+                    addFeedItem('👋', 'Session Started: Login Detected');
+                    break;
+            }
+        });
+
+        ipcRenderer.on('log:error', (e, data) => {
+            addFeedItem('❌', `<span style="color:#ff4444">${data.message}</span>`);
+            document.getElementById('status-log-dot').className = 'dot off';
+            document.getElementById('status-log-text').innerText = 'Error';
         });
 
         ipcRenderer.on('api:status', (e, status) => {

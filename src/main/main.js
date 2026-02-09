@@ -93,6 +93,11 @@ function broadcast(channel, data) {
 // Log Watcher Events
 LogWatcher.on('gamestate', (data) => broadcast('log:update', data));
 LogWatcher.on('status', (status) => broadcast('log:status', status));
+LogWatcher.on('error', (err) => {
+    console.error('[LogWatcher] Error:', err);
+    broadcast('log:error', { message: typeof err === 'string' ? err : err.message || 'Unknown error' });
+});
+LogWatcher.on('login', (data) => broadcast('log:update', { type: 'LOGIN', value: 'ONLINE' }));
 
 // API Events
 APIClient.on('party', (data) => broadcast('api:party', data));

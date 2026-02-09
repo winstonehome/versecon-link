@@ -108,6 +108,11 @@
         <div class="value" id="state">IDLE</div>
     </div>
 
+    <div class="hud-module">
+        <div class="label">ZONE STATUS</div>
+        <div class="value" id="zone" style="font-size: 0.9rem;">—</div>
+    </div>
+
     <div class="hud-module" id="party-module">
         <div class="label">SQUADRON STATUS</div>
         <div class="party-list" id="party-list">
@@ -119,13 +124,39 @@
         const { ipcRenderer } = require('electron');
         const elLocation = document.getElementById('location');
         const elState = document.getElementById('state');
+        const elZone = document.getElementById('zone');
         const elPartyList = document.getElementById('party-list');
 
         ipcRenderer.on('log:update', (event, data) => {
-            if (data.type === 'LOCATION') elLocation.innerText = data.value.toUpperCase();
-            if (data.type === 'QUANTUM') {
-                elState.innerText = data.value;
-                elState.className = data.value === 'IN_TRAVEL' ? 'value highlight' : 'value';
+            switch (data.type) {
+                case 'LOCATION':
+                    elLocation.innerText = data.value.toUpperCase().trim();
+                    break;
+                case 'LOCATION_HINT':
+                    elLocation.innerText = data.value.toUpperCase();
+                    break;
+                case 'QUANTUM':
+                    elState.innerText = data.value === 'entered' ? 'ENGAGED' : 'IDLE';
+                    elState.className = data.value === 'entered' ? 'value highlight' : 'value';
+                    break;
+                case 'ZONE':
+                    if (data.value === 'armistice_enter') {
+                        elZone.innerText = '🛡️ ARMISTICE';
+                        elZone.style.color = '#00ff88';
+                    } else if (data.value === 'armistice_leave') {
+                        elZone.innerText = '⚠️ CAUTION';
+                        elZone.style.color = '#ffaa00';
+                    } else if (data.value === 'monitored_enter') {
+                        elZone.innerText = '📡 MONITORED';
+                        elZone.style.color = '#00c8ff';
+                    }
+                    break;
+                case 'STATUS':
+                    if (data.value === 'death') {
+                        elZone.innerText = '💀 KIA';
+                        elZone.style.color = '#ff4444';
+                    }
+                    break;
             }
         });
 
