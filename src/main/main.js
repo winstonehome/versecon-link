@@ -77,6 +77,12 @@ ipcMain.handle('app:select-log', async () => {
     return null;
 });
 
+ipcMain.handle('app:open-external', async (event, url) => {
+    const { shell } = require('electron');
+    await shell.openExternal(url);
+    return true;
+});
+
 
 // Logic: Broadcast to ALL windows
 function broadcast(channel, data) {

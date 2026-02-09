@@ -399,7 +399,7 @@
         // Logic
         function openLogin() {
             // Point to main login for now until deep link page is live
-            shell.openExternal('https://versecon.com/login');
+            ipcRenderer.invoke('app:open-external', 'https://versecon.com/login');
             addFeedItem('🔑', 'Opening browser... Please login and copy your token.');
         }
 
