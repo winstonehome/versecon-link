@@ -272,10 +272,10 @@
     <div class="sidebar">
         <div class="brand">VerseCon <span style="color:white; font-weight:300;">Link</span></div>
 
-        <div class="menu-item active">
+        <div class="menu-item active" id="nav-dashboard" onclick="switchTab('dashboard')">
             <span>📊</span> Dashboard
         </div>
-        <div class="menu-item">
+        <div class="menu-item" id="nav-config" onclick="switchTab('config')">
             <span>⚙️</span> Configuration
         </div>
         <div class="menu-item" onclick="toggleOverlay()">
@@ -286,8 +286,19 @@
 
         <div style="margin-bottom: 20px;">
             <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 5px;">VERSECON AUTH</div>
-            <input type="password" id="api-token" class="modern-input" placeholder="Paste Session Token">
-            <button class="cyber-btn" onclick="login()">Connect Account</button>
+
+            <div id="auth-ui-guest">
+                <button class="cyber-btn" onclick="openLogin()">Login with VerseCon</button>
+                <div style="font-size: 0.7rem; color: #666; margin-top: 5px; text-align: center;">
+                    Opens browser to authenticate
+                </div>
+            </div>
+
+            <div id="auth-ui-user"
+                style="display:none; background: rgba(0,255,136,0.1); padding: 10px; border-radius: 6px; border: 1px solid #00ff88;">
+                <div style="color: #00ff88; font-weight: bold; font-size: 0.9rem;">✓ Authenticated</div>
+                <div style="font-size: 0.7rem; color: #aaa;" id="auth-token-display">Session Active</div>
+            </div>
         </div>
 
         <div class="status-box">
@@ -302,7 +313,8 @@
         </div>
     </div>
 
-    <div class="main">
+    <!-- DASHBOARD VIEW -->
+    <div class="main" id="view-dashboard">
         <div class="header">
             <div>
                 <h2>Operations Live Feed</h2>
@@ -320,24 +332,93 @@
         </div>
     </div>
 
+    <!-- CONFIG VIEW -->
+    <div class="main" id="view-config" style="display: none;">
+        <div class="header">
+            <div>
+                <h2>Configuration</h2>
+                <div class="subtitle">System Settings & Paths</div>
+            </div>
+        </div>
+
+        <div style="background: rgba(0,0,0,0.4); padding: 20px; border-radius: 8px; border: 1px solid var(--border);">
+            <h3 style="margin-top:0;">Game Log Path</h3>
+            <p style="color: var(--text-dim); font-size: 0.9rem;">
+                VerseCon Link needs to read your Star Citizen <code>Game.log</code> file to detect your location and
+                status.
+            </p>
+
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <input type="text" id="config-log-path" class="modern-input" style="margin-top:0;" readonly
+                    placeholder="No file selected">
+                <button class="cyber-btn" style="width: auto; margin-top:0;"
+                    onclick="selectLogFile()">Browse...</button>
+            </div>
+
+            <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                <h4 style="margin:0 0 10px 0; color: #888;">Manual Token (Legacy)</h4>
+                <div style="display: flex; gap: 5px;">
+                    <input type="password" id="api-token-manual" placeholder="Paste token here if login fails"
+                        style="background:#222; border:1px solid #444; color:#888; padding:5px; border-radius:4px; flex:1;">
+                    <button
+                        style="width:auto; padding:5px 10px; background:#444; color:#fff; border:none; border-radius:4px; cursor:pointer;"
+                        onclick="loginManual()">Set</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
-        const { ipcRenderer } = require('electron');
+        const { ipcRenderer, shell } = require('electron');
 
         // UI Elements
         const feed = document.getElementById('event-feed');
-        const tokenInput = document.getElementById('api-token');
+        const configLogPath = document.getElementById('config-log-path');
+        const authGuest = document.getElementById('auth-ui-guest');
+        const authUser = document.getElementById('auth-ui-user');
 
-        function login() {
-            const token = tokenInput.value;
+        // Tabs
+        function switchTab(tab) {
+            document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+            if (tab === 'dashboard') document.getElementById('nav-dashboard').classList.add('active');
+            if (tab === 'config') document.getElementById('nav-config').classList.add('active');
+
+            document.getElementById('view-dashboard').style.display = tab === 'dashboard' ? 'flex' : 'none';
+            document.getElementById('view-config').style.display = tab === 'config' ? 'flex' : 'none';
+        }
+
+        // Logic
+        function openLogin() {
+            // In the future, this URL will trigger the Discord/RSI Oauth flow and redirect to versecon-link://
+            // For now, we simulate or point to a placeholder
+            // Replace with REAL AUTH URL when backend is ready: https://versecon.com/api/auth/link
+            shell.openExternal('https://versecon.com/link-login');
+            addFeedItem('🔑', 'Opening browser for authentication...');
+        }
+
+        function loginManual() {
+            const token = document.getElementById('api-token-manual').value;
             if (token) {
                 console.log('Sending token:', token);
                 ipcRenderer.send('app:login', token);
-                addFeedItem('🔒', 'Validating session token with VerseCon...');
+                // Simulate auth success UI (in real app, wait for api:status)
+                authGuest.style.display = 'none';
+                authUser.style.display = 'block';
+                addFeedItem('🔒', 'Manual token set.');
             }
         }
 
         function toggleOverlay() {
             ipcRenderer.send('app:toggle-overlay');
+        }
+
+        function selectLogFile() {
+            ipcRenderer.invoke('app:select-log').then(path => {
+                if (path) {
+                    configLogPath.value = path;
+                    addFeedItem('⚙️', `Log path manually set to: ${path}`);
+                }
+            });
         }
 
         function addFeedItem(icon, text) {
@@ -360,7 +441,8 @@
             if (data.connected) {
                 dot.className = 'dot on';
                 txt.innerText = 'Active';
-                addFeedItem('📂', `Hooked into Game.log at <span class="feed-highlight">${data.path}</span>`);
+                configLogPath.value = data.path || 'Auto-detected';
+                if (data.path) addFeedItem('📂', `Hooked into Game.log at <span class="feed-highlight">${data.path}</span>`);
             } else {
                 dot.className = 'dot off';
                 txt.innerText = 'Searching';
@@ -385,6 +467,14 @@
 
         ipcRenderer.on('api:party', (e, data) => {
             addFeedItem('👥', `Party Data Sync: <span class="feed-highlight">${data.members.length} Members</span>`);
+        });
+
+        // New: Listen for successful auth from Main process (Deep Link)
+        ipcRenderer.on('auth:success', (e, token) => {
+            console.log('Auth success via deep link!');
+            authGuest.style.display = 'none';
+            authUser.style.display = 'block';
+            addFeedItem('✅', 'Authentication Successful via Browser!');
         });
     </script>
 </body>
